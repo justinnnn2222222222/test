@@ -20,6 +20,8 @@ def modify_config_file(path, config):
 
     if config['command']['world'] == 'cityflow':
         with open(path, 'r') as f:
+            # content = f.read()
+            # print("JSON file content before modification:",content) #调试信息
             path_config = json.load(f)
         for k in path_config.keys():
             # modify config step1

@@ -1,0 +1,4 @@
+name: env_name
+channels:
+  - defaults
+prefix: /home/data/panghu/anaconda3/envs/env_name

@@ -87,6 +87,8 @@ class TSCTrainer(BaseTrainer):
         :return: None
         '''
         self.agents = []
+#       print(Registry.mapping['model_mapping'])
+#       打印注册表信息
         agent = Registry.mapping['model_mapping'][Registry.mapping['command_mapping']['setting'].param['agent']](self.world, 0)
         print(agent)
         num_agent = int(len(self.world.intersections) / agent.sub_agents)

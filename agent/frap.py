@@ -61,6 +61,16 @@ class FRAP_DQNAgent(RLAgent):
 
         map_name = self.dic_traffic_env_conf.param['network']
 
+        # 打印调试信息
+        # print("self.dic_traffic_env_conf.param['signal_config']:", self.dic_traffic_env_conf.param['signal_config'])
+        # print("map_name:", map_name)
+
+        # 获取 signal_config 并处理可能的键错误
+        signal_config = self.dic_traffic_env_conf.param['signal_config'].get(map_name, {})
+        if 'valid_acts' not in signal_config:
+            raise KeyError(f"Configuration for '{map_name}' not found in 'signal_config'")
+
+
         # set valid action
         all_valid_acts = self.dic_traffic_env_conf.param['signal_config'][map_name]['valid_acts']
         if all_valid_acts is None:
@@ -378,15 +388,15 @@ class FRAP(nn.Module):
     '''
     def __init__(self, dic_agent_conf, output_shape, phase_pairs, competition_mask):
         super(FRAP, self).__init__()
-        self.oshape = output_shape
-        self.phase_pairs = phase_pairs
-        self.comp_mask = competition_mask
-        self.demand_shape = dic_agent_conf.param['demand_shape']      # Allows more than just queue to be used
+        self.oshape = output_shape #存储输出形状
+        self.phase_pairs = phase_pairs #存储相位对
+        self.comp_mask = competition_mask #存储竞争掩码
+        self.demand_shape = dic_agent_conf.param['demand_shape']      # Allows more than just queue to be used 需求形状
         self.one_hot = dic_agent_conf.param['one_hot']
-        self.d_out = 4      # units in demand input layer
-        self.p_out = 4      # size of phase embedding
-        self.lane_embed_units = 16
-        relation_embed_size = 4
+        self.d_out = 4      # units in demand input layer 需求输入层单元数
+        self.p_out = 4      # size of phase embedding 相位嵌入层的单元数
+        self.lane_embed_units = 16 #车道嵌入层的单元数
+        relation_embed_size = 4 #关系嵌入的大小
 
         self.p = nn.Embedding(2, self.p_out)
         self.d = nn.Linear(self.demand_shape, self.d_out)

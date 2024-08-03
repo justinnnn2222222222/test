@@ -35,14 +35,14 @@ class Metrics(object):
         :return: None
         '''
         if rewards is not None:
-            self.lane_metrics['rewards'] += rewards.flatten()
+            self.lane_metrics['rewards'] += rewards.flatten() #将当前的奖励值累加到之间的总和中，展平是考虑了多智能体导致的形状不匹配问题，展平后为一维数组
         if 'delay' in self.lane_metrics.keys():
             self.lane_metrics['delay'] += (np.stack(np.array(
-                [ag.get_delay() for ag in self.agents], dtype=np.float32))).flatten()
+                [ag.get_delay() for ag in self.agents], dtype=np.float32))).flatten() #也有展平操作
         if 'queue' in self.lane_metrics.keys():
             self.lane_metrics['queue'] += (np.stack(np.array(
                 [ag.get_queue() for ag in self.agents], dtype=np.float32))).flatten()
-        self.decision_num += 1
+        self.decision_num += 1 #决策次数计数器加1
 
     def clear(self):
         '''

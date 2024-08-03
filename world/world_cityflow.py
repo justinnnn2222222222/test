@@ -2,7 +2,7 @@ import json
 import os
 import cityflow
 from common.registry import Registry
-
+import datetime
 import numpy as np
 from math import atan2, pi
 import math
@@ -196,7 +196,9 @@ class Intersection(object):
         self.eng.set_tl_phase(self.id, self._current_phase)
         self.current_phase_time = 0
         self.action_before_yellow = None
+        # 跟踪黄灯之前的动作变量
         self.action_executed = None
+    #     跟踪已经执行的动作变量
 
     # TODO: THIS IS Y/X  But we keep it right now
     def _get_direction(self, road, out=True):
@@ -307,7 +309,11 @@ class World(object):
             "history_vehicles": self.get_history_vehicles,
             "phase": self.get_cur_phase,
             "throughput": self.get_cur_throughput,
-            "averate_travel_time": self.get_average_travel_time
+            "averate_travel_time": self.get_average_travel_time,
+            "detailed_lane_pressure":self.get_detailed_lane_pressure,
+            "discretize_position":self.get_discretize_position,
+            "discretize_position_velocity":self.get_discretize_position_velocity,
+
             # "action_executed": self.get_executed_action
         }
         self.fns = []
@@ -394,6 +400,7 @@ class World(object):
                 if value:
                     list_lane_vehicle.extend(value)
             return list_lane_vehicle
+        # 将一个字典（包含车辆ID的字典）转化为列表
 
         # contain outflow lanes
         self.dic_lane_vehicle_current_step = self.eng.get_lane_vehicles()
@@ -401,10 +408,12 @@ class World(object):
         # get vehicle list
         self.list_lane_vehicle_current_step = _change_lane_vehicle_dic_to_list(self.dic_lane_vehicle_current_step)
         self.list_lane_vehicle_previous_step = _change_lane_vehicle_dic_to_list(self.dic_lane_vehicle_previous_step)
+        # 使用集合运算来获取新来的车辆和离开的车辆
         list_vehicle_new_arrive = list(
             set(self.list_lane_vehicle_current_step) - set(self.list_lane_vehicle_previous_step))
         list_vehicle_new_left = list(
             set(self.list_lane_vehicle_previous_step) - set(self.list_lane_vehicle_current_step))
+        # 分别更新到达和离开车辆的时间
         self._update_arrive_time(list_vehicle_new_arrive)
         self._update_left_time(list_vehicle_new_left)
     
@@ -420,7 +429,7 @@ class World(object):
         throughput = 0
         for dic in self.dic_vehicle_arrive_leave_time:
             vehicle = self.dic_vehicle_arrive_leave_time[dic]
-            if (not np.isnan(vehicle["cost_time"])) and vehicle["leave_time"] <= self.eng.get_current_time():
+            if (not np.isnan(vehicle["cost_time"])) and vehicle["leave_time"] <= self.eng.get_current_time():#车辆已经完成了行程，车辆的完成时间小于当前步
                 throughput += 1
         return throughput
 
@@ -449,6 +458,7 @@ class World(object):
         for i in self.intersections:
             phases.append(i.current_phase)
         return phases
+    # 获取当前相位信息
 
     def get_pressure(self):
         '''
@@ -618,7 +628,7 @@ class World(object):
         vehicle_lane = self.get_vehicle_lane() # get vehicles on tne roads except turning
         vehicles = self.eng.get_vehicles(include_waiting=False)
         for vehicle in vehicles:
-            if vehicle not in self.vehicle_trajectory:
+            if vehicle not in self.vehicle_trajectory:#vehicle_trajectory中vehicle的第一个数字表示进入时刻，第二个应该表示离开时刻（如果没离开则表示当前时间）
                 self.vehicle_trajectory[vehicle] = [[vehicle_lane[vehicle], int(self.eng.get_current_time()), 0]]
             else:
                 if vehicle not in vehicle_lane.keys(): # vehicle is turning
@@ -719,7 +729,7 @@ class World(object):
         step
         Take relative actions and update information, 
         including global information, measurements and trajectory, etc.
-        
+        actions为交叉口要采取的动作，下标为第几个交叉口，值为要采取的动作值，猜测应该是相位要改变的值
         :param actions: actions list to be executed at all intersections at the next step
         :return: None
         '''
@@ -758,6 +768,7 @@ class World(object):
         :param: None
         :return: None
         '''
+        # 作用：更新全局信息车辆数、车辆等待数、相位信息、延迟信息
         self.info = {}
         for fn in self.fns:
             self.info[fn] = self.info_functions[fn]()
@@ -771,7 +782,7 @@ class World(object):
         :return _info: specific information
         '''
         _info = self.info[info]
-        return _info
+        return _info#通过info键来返回值，返回一个字典类型的值
 
     def get_average_travel_time(self):
         '''
@@ -843,6 +854,137 @@ class World(object):
             count += 1
         avg_delay = avg_delay / count
         return avg_delay
+    
+    def get_discretize_position(self):
+        """
+                Retrieve the state of the intersection from sumo, in the form of cell occupancy
+                这个是叠加的
+        """
+        lane_vehicle_dict = self.eng.get_lane_vehicles()
+        vehicle_positions = self.eng.get_vehicle_distance()
+        # print("\033[93mposition:\033[0m")
+        # print(vehicle_positions)
+        vehicle_speeds = self.eng.get_vehicle_speed()
+        # print("\033[93mspeed:\033[0m")
+        # print(vehicle_speeds)
+        # 计算向量的长度
+        lane_length = 500.0
+        interval = 7.5
+        vector_length = int(lane_length / interval)
+        # print("\033[93mlane_vector_length:\033[0m",vector_length)
+        # 初始化车道速度位置字典
+        lane_vector_dict = {}
+        # 获取速度的最大值，用于归一化
+        max_speed = max(vehicle_speeds.values(), default=60)  # 默认为1.0，避免除以零
+        # 遍历车道ID和对应的车辆ID列表
+        for lane_id, vehicle_list in lane_vehicle_dict.items():
+            # 初始化位置速度向量
+            position_vector = [0] * vector_length
+            # 遍历车辆ID列表
+            for vehicle_id in vehicle_list:
+                # 获取车辆对应的位置和速度
+                position = vehicle_positions.get(vehicle_id, 0)
+                speed = vehicle_speeds.get(vehicle_id, 0)
+                # 将速度归一化到范围[0, 1]
+                normalized_speed = speed / max_speed if max_speed != 0 else 0
+                # 将车辆的位置映射到向量的相应位置，确保不超出数组范围
+                index = min(int(position / interval), vector_length - 1)
+                # 在向量中将相应位置置为位置值和速度值的和
+                position_vector[index] += 1 + normalized_speed
+            # 将车道ID和对应的速度位置向量添加到字典中
+            lane_vector_dict[lane_id] = position_vector
+        # print("\033[93mlane_vector_dict:\033[0m")
+        # print(lane_vector_dict)
+        return lane_vector_dict
+
+    def get_discretize_position_velocity(self):
+        """
+                Retrieve the state of the intersection from sumo, in the form of cell occupancy
+                这个没相加
+        """
+        lane_vehicle_dict = self.eng.get_lane_vehicles()
+        vehicle_positions = self.eng.get_vehicle_distance()
+        # print("\033[93mposition:\033[0m")
+        # print(vehicle_positions)
+        vehicle_speeds = self.eng.get_vehicle_speed()
+        # print("\033[93mspeed:\033[0m")
+        # print(vehicle_speeds)
+        # 计算向量的长度
+        lane_length = 500.0
+        interval = 7.5
+        vector_length = int(lane_length / interval)
+        # print("\033[93mlane_vector_length:\033[0m",vector_length)
+        # 初始化车道速度位置字典
+        lane_vector_dict = {}
+        # 获取速度的最大值，用于归一化
+        max_speed = max(vehicle_speeds.values(), default=60)  # 默认为1.0，避免除以零
+        # 遍历车道ID和对应的车辆ID列表
+        for lane_id, vehicle_list in lane_vehicle_dict.items():
+            # 初始化位置速度向量
+            position_vector = [0] * vector_length
+            speed_vector = [0] * vector_length
+            # 遍历车辆ID列表
+            for vehicle_id in vehicle_list:
+                # 获取车辆对应的位置和速度
+                position = vehicle_positions.get(vehicle_id, 0)
+                speed = vehicle_speeds.get(vehicle_id, 0)
+                # 将速度归一化到范围[0, 1]
+                normalized_speed = speed / max_speed if max_speed != 0 else 0
+                # 将车辆的位置映射到向量的相应位置，确保不超出数组范围
+                index = min(int(position / interval), vector_length - 1)
+                # 在向量中将相应位置置为位置值和速度值的和
+                position_vector[index] += 1
+                speed_vector[index] += normalized_speed
+            # 将车道ID和对应的速度位置向量添加到字典中
+            lane_vector_dict[lane_id] = position_vector+speed_vector
+        # print("\033[93mlane_vector_dict:\033[0m")
+        # print(lane_vector_dict)
+        return lane_vector_dict
+
+
+    def get_detailed_lane_pressure(self):
+        """
+        获取每个车道的详细压力信息。
+
+        :param: id_: 标识符，用于判断车道是否属于 start_lane
+        :return: lane_pressure_dict 每个车道的详细压力字典
+        """
+        lane_vehicle_dict = self.eng.get_lane_vehicles()
+        vehicle_positions = self.eng.get_vehicle_distance()
+        vehicle_speeds = self.eng.get_vehicle_speed()
+
+        # 获取当前时间并格式化
+        current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
+       
+
+
+        lane_length = 500.0
+        lane_pressure_dict = self.get_lane_pressure()  # 使用前面定义的 get_lane_pressure 函数获取初始压力
+
+        max_speed = max(vehicle_speeds.values(), default=60)
+        sigma = 1.5
+        L = lane_length
+
+        in_lanes, out_lanes = self.get_in_out_lanes()
+
+        for lane_id, vehicle_list in lane_vehicle_dict.items():
+            lane_pressure = lane_pressure_dict.get(lane_id, 0)
+
+            for vehicle_id in vehicle_list:
+                position = vehicle_positions.get(vehicle_id, 0)
+                speed = vehicle_speeds.get(vehicle_id, 0)
+
+                # 计算额外的车道压力部分
+                if lane_id in in_lanes:
+                    lane_pressure += float(format(math.log(
+                        position / L * sigma * (max_speed - speed) / (speed + 1) + 1), '.4f'))
+                else:
+                    lane_pressure += float(format(math.log(
+                        (L - position) / L * sigma * (max_speed - speed) / (speed + 1) + 1), '.4f'))
+
+            lane_pressure_dict[lane_id] = lane_pressure
+        return lane_pressure_dict
         
 
 

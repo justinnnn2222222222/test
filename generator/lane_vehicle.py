@@ -101,6 +101,7 @@ class LaneVehicleGenerator(BaseGenerator):
                 self.lanes.append(tmp)
                 # TODO: rank lanes by lane ranking [0,1,2], assume we only have one digit for ranking
         elif isinstance(world, world_cityflow.World):
+            # 用于生成车道
             for road in roads:
                 from_zero = (road["startIntersection"] == I.id) if self.world.RIGHT else (road["endIntersection"] == I.id)
                 self.lanes.append([road["id"] + "_" + str(i) for i in range(len(road["lanes"]))[::(1 if from_zero else -1)]])
@@ -148,14 +149,14 @@ class LaneVehicleGenerator(BaseGenerator):
         ret = np.array([])
         for i in range(len(self.fns)):
             result = results[i]
-
+            # 遍历功能函数列表，获取每个函数对应的结果
             # pressure returns result of each intersections, so return directly
             if self.I.id in result:
                 ret = np.append(ret, result[self.I.id])
                 continue
             fn_result = np.array([])
 
-            for road_lanes in self.lanes:
+            for road_lanes in self.lanes:#这里self.lanes显示为入口车道
                 road_result = []
                 for lane_id in road_lanes:
                     road_result.append(result[lane_id])
@@ -165,17 +166,17 @@ class LaneVehicleGenerator(BaseGenerator):
                     road_result = np.array(road_result)
                 fn_result = np.append(fn_result, road_result)
             
-            if self.average == "all":
+            if self.average == "all": #判断是否要求平均值
                 fn_result = np.mean(fn_result)
             ret = np.append(ret, fn_result)
         if self.negative:
             ret = ret * (-1)
         origin_ret = ret
-        if len(ret) == 3:
+        if len(ret) == 3:#如果长度为3，那么ret_list增加一个0
             ret_list = list(ret)
             ret_list.append(0)
             ret = np.array(ret_list)
-        if len(ret) == 2:
+        if len(ret) == 2:#如果长度为2，那么ret_list增加两个0
             ret_list = list(ret)
             ret_list.append(0)
             ret_list.append(0)
