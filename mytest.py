@@ -10,6 +10,8 @@ from decimal import Decimal, ROUND_HALF_UP
 import csv
 import pandas as pd
 
+
+
 # 从.log文件中读取数据
 
 # 指定宋体字体
@@ -24,6 +26,8 @@ file_path2 = 'data/output_data/tsc/cityflow_mplight/cityflow1x1_config1/real_del
 # /home/data/panghu/new/LibSignal/data/output_data/tsc/cityflow_myyfrap/cityflow1x1/test/logger/2024_07_14-16_01_41_BRF.log
 file_path3 = 'data/output_data/tsc/cityflow_frap/cityflow1x1_config1/real_delay/logger/2024_06_27-23_44_57_BRF.log'
 file_path4 = 'data/output_data/tsc/cityflow_myyfrap/cityflow1x1/test/logger/2024_07_14-16_01_41_BRF.log'
+
+
 file_paths = [file_path1, file_path2,file_path3, file_path4]
 
 def extract_parameter_from_path(file_path):
