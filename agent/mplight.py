@@ -47,7 +47,11 @@ class MPLightAgent(RLAgent):
         self.one_hot = self.dic_agent_conf.param['one_hot']
         self.action_space_list = [gym.spaces.Discrete(len(x.phases)) for x in self.world.intersections]
         # create competition matrix
+        # print(self.dic_traffic_env_conf)
+
         map_name = self.dic_traffic_env_conf.param['network']
+        print(map_name)
+
         self.phase_pairs = self.dic_traffic_env_conf.param['signal_config'][map_name]['phase_pairs']
         self.comp_mask = self.relation()
         self.valid_acts = self.dic_traffic_env_conf.param['signal_config'][map_name]['valid_acts']
